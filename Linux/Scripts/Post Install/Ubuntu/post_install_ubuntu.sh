@@ -21,6 +21,9 @@ header_info() {
 EOF
 }
 
+# Trap to handle unexpected errors
+trap 'echo -e "${RED}An unexpected error occurred. Exiting.${RESET}"; exit 1' ERR
+
 # Check for root
 if [[ $EUID -ne 0 ]]; then
     echo -e "${RED}This script must be run as root. Exiting.${RESET}"
@@ -42,9 +45,11 @@ CUSTOM_REPO_NAME="custom-tools"
 
 # Add custom repo
 echo -e "${CYAN}Adding custom repository for tools...${RESET}"
+if ! wget -q --spider "${CUSTOM_REPO_URL}/Packages.gz"; then
+    echo -e "${RED}Custom repository is missing the Packages.gz file. Please ensure the repository is configured correctly.${RESET}"
+    exit 1
+fi
 echo "deb [trusted=yes] ${CUSTOM_REPO_URL} ./" > /etc/apt/sources.list.d/${CUSTOM_REPO_NAME}.list
-
-# Validate and update
 apt update || {
     echo -e "${RED}Failed to add custom repository. Please check the URL or structure.${RESET}"
     exit 1
@@ -59,32 +64,14 @@ if [[ $install_qemu =~ ^[Yy]$ ]]; then
 fi
 
 # Prompt for Prometheus Node Exporter
-read -p "Install and configure Prometheus Node Exporter as a service? (y/n): " install_prometheus
+read -p "Install Prometheus Node Exporter? (y/n): " install_prometheus
 if [[ $install_prometheus =~ ^[Yy]$ ]]; then
     echo -e "${CYAN}Installing Prometheus Node Exporter...${RESET}"
     apt install -y prometheus-node-exporter || {
         echo -e "${RED}Failed to install Node Exporter.${RESET}"
         exit 1
     }
-
-    echo -e "${CYAN}Configuring Node Exporter as a systemd service...${RESET}"
-    cat <<EOF >/etc/systemd/system/node-exporter.service
-[Unit]
-Description=Prometheus Node Exporter
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/node_exporter
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable node-exporter
-    systemctl start node-exporter || echo -e "${RED}Failed to start Node Exporter service.${RESET}"
+    echo -e "${GREEN}Prometheus Node Exporter installed and configured successfully!${RESET}"
 fi
 
 # Shell Setup
@@ -93,39 +80,44 @@ apt install -y fish || echo -e "${RED}Failed to install Fish shell.${RESET}"
 fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher"
 fish -c "fisher install IlanCosman/tide && tide configure"
 
-echo -e "${CYAN}Setting default shell to Fish...${RESET}"
-chsh -s /usr/bin/fish $(whoami) || echo -e "${RED}Failed to set Fish as default shell.${RESET}"
+# Prompt for Fish as the default shell
+read -p "Set Fish shell as default for all users (a) or specific users (s)? " shell_choice
+if [[ $shell_choice == "a" ]]; then
+    for user_home in /home/*; do
+        user=$(basename "$user_home")
+        chsh -s /usr/bin/fish "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
+    done
+elif [[ $shell_choice == "s" ]]; then
+    for user_home in /home/*; do
+        user=$(basename "$user_home")
+        read -p "Set Fish as default for $user? (y/n): " user_shell
+        if [[ $user_shell =~ ^[Yy]$ ]]; then
+            chsh -s /usr/bin/fish "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
+        fi
+    done
+fi
 
 # Tool Installation
-echo -e "${CYAN}Installing tools...${RESET}"
-apt install -y nala lsd ranger gdu bat duf || echo -e "${RED}Failed to install tools.${RESET}"
+echo -e "${CYAN}Installing tools using Nala...${RESET}"
+apt install -y nala && {
+    nala install -y lsd ranger gdu bat duf || echo -e "${RED}Failed to install some tools.${RESET}"
+} || echo -e "${RED}Failed to install Nala.${RESET}"
 
 # Custom Fish Functions
 read -p "Install custom Fish functions? (y/n): " install_functions
 if [[ $install_functions =~ ^[Yy]$ ]]; then
     echo -e "${CYAN}Downloading custom Fish functions from GitHub...${RESET}"
     temp_dir=$(mktemp -d)
+    wget -q -r -nH --cut-dirs=3 --no-parent --reject "index.html*" \
+        -P "$temp_dir" https://github.com/skuldgerry/hosting/raw/main/Linux/Fish_Functions/ || {
+        echo -e "${RED}Failed to download Fish functions.${RESET}"
+        rm -rf "$temp_dir"
+        exit 1
+    }
 
-    # Clone the GitHub repository (requires git)
-    if command -v git &> /dev/null; then
-        git clone --depth 1 https://github.com/skuldgerry/hosting.git "$temp_dir" || {
-            echo -e "${RED}Failed to clone Fish functions from GitHub.${RESET}"
-            rm -rf "$temp_dir"
-            exit 1
-        }
-    else
-        # Fallback to wget or curl if git is not available
-        wget -q -P "$temp_dir" https://raw.githubusercontent.com/skuldgerry/hosting/main/Linux/Fish_Functions/* || {
-            echo -e "${RED}Failed to download Fish functions from GitHub.${RESET}"
-            rm -rf "$temp_dir"
-            exit 1
-        }
-    fi
-
-    # Copy Fish functions
     echo -e "${CYAN}Installing Fish functions...${RESET}"
     mkdir -p /usr/share/fish/functions/
-    cp -r "$temp_dir/Linux/Fish_Functions/"* /usr/share/fish/functions/ || {
+    cp -r "$temp_dir"/* /usr/share/fish/functions/ || {
         echo -e "${RED}Failed to copy Fish functions.${RESET}"
         rm -rf "$temp_dir"
         exit 1
@@ -156,4 +148,12 @@ else
     echo -e "${CYAN}Skipping Fish functions installation.${RESET}"
 fi
 
-echo -e "${GREEN}Post-install setup completed successfully!${RESET}"
+# Final Summary
+echo -e "\n${CYAN}Summary of Actions:${RESET}"
+echo -e "${GREEN}✔ System updated${RESET}"
+echo -e "${GREEN}✔ Custom repository added${RESET}"
+[[ $install_qemu =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ QEMU Guest Agent installed${RESET}"
+[[ $install_prometheus =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Prometheus Node Exporter installed${RESET}"
+[[ $install_functions =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}"
+echo -e "${GREEN}✔ Tools installed: nala, lsd, ranger, gdu, bat, duf${RESET}"
+echo -e "\n${GREEN}Post-install setup completed successfully!${RESET}"
