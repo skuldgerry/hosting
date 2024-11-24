@@ -16,21 +16,34 @@ jobs:
     - name: Get Latest DUF Version
       id: get_version
       run: |
-        LATEST_DUF=$(curl -s https://github.com/muesli/duf/releases/latest | grep -oP 'tag/\K[^\"]+')
-        echo "latest_version=${LATEST_DUF}" >> $GITHUB_ENV
+        # Fetch the latest DUF version tag
+        LATEST_DUF=$(curl -s https://github.com/muesli/duf/releases/latest | grep -oP 'tag/v\K\d+\.\d+\.\d+')
+        if [[ -z "$LATEST_DUF" ]]; then
+          echo "Failed to fetch the latest DUF version."
+          exit 1
+        fi
+        echo "latest_version=$LATEST_DUF" >> $GITHUB_ENV
+        echo "Latest DUF version: $LATEST_DUF"
 
     - name: Check Current DUF Version
+      id: check_version
       run: |
-        LOCAL_DUF=$(basename $(find ./Linux/Scripts/Post\ Install/Ubuntu/Packages -name "duf*.deb" 2>/dev/null) | grep -oP '\d+\.\d+\.\d+')
-        if [ "$LATEST_DUF" != "$LOCAL_DUF" ]; then
-          echo "New version available: $LATEST_DUF. Updating..."
+        # Find the local DUF version
+        LOCAL_DUF=$(find ./Linux/Scripts/Post\ Install/Ubuntu/Packages -name "duf*.deb" -exec basename {} \; | grep -oP '\d+\.\d+\.\d+' | head -n 1)
+        if [[ -z "$LOCAL_DUF" ]]; then
+          echo "No local DUF version found."
+          echo "update_needed=true" >> $GITHUB_ENV
+        elif [[ "$LATEST_DUF" != "$LOCAL_DUF" ]]; then
+          echo "New version available: $LATEST_DUF. Current version: $LOCAL_DUF."
           echo "update_needed=true" >> $GITHUB_ENV
         else
           echo "DUF is up to date."
+          echo "update_needed=false" >> $GITHUB_ENV
         fi
 
     - name: Download New DUF
       if: env.update_needed == 'true'
       run: |
+        # Download the latest DUF package
         wget https://github.com/muesli/duf/releases/download/v${{ env.latest_version }}/duf_${{ env.latest_version }}_amd64.deb -O ./Linux/Scripts/Post\ Install/Ubuntu/Packages/duf_${{ env.latest_version }}_amd64.deb
         echo "DUF updated to version $LATEST_DUF."
