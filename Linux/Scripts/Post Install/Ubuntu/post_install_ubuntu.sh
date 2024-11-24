@@ -40,15 +40,23 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
 }
 
 # Prompt for QEMU Guest Agent
-read -p "Install QEMU Guest Agent? (y/n): " install_qemu
-if [[ $install_qemu =~ ^[Yy]$ ]]; then
+install_qemu=$(dialog --title "Install QEMU Guest Agent" --menu "Do you want to install QEMU Guest Agent?" 15 50 4 \
+1 "Yes" \
+2 "No" \
+3>&1 1>&2 2>&3)
+
+if [[ $install_qemu -eq 1 ]]; then
     echo -e "${GREEN}Installing QEMU Guest Agent...${RESET}"
     apt install -y qemu-guest-agent || echo -e "${RED}Failed to install QEMU Guest Agent.${RESET}"
 fi
 
 # Prompt for Prometheus Node Exporter
-read -p "Install Prometheus Node Exporter? (y/n): " install_prometheus
-if [[ $install_prometheus =~ ^[Yy]$ ]]; then
+install_prometheus=$(dialog --title "Install Prometheus Node Exporter" --menu "Do you want to install Prometheus Node Exporter?" 15 50 4 \
+1 "Yes" \
+2 "No" \
+3>&1 1>&2 2>&3)
+
+if [[ $install_prometheus -eq 1 ]]; then
     echo -e "${CYAN}Installing Prometheus Node Exporter...${RESET}"
     apt install -y prometheus-node-exporter || {
         echo -e "${RED}Failed to install Node Exporter.${RESET}"
@@ -64,16 +72,21 @@ fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/
 fish -c "fisher install IlanCosman/tide && tide configure"
 
 # Prompt for Fish as the default shell
-read -p "Set Fish shell as default for all users (a) or specific users (s)? " shell_choice
-if [[ $shell_choice == "a" ]]; then
+shell_choice=$(dialog --title "Set Fish Shell" --menu "Do you want to set Fish shell as default?" 15 50 3 \
+1 "For all users" \
+2 "For specific users" \
+3 "Skip" \
+3>&1 1>&2 2>&3)
+
+if [[ $shell_choice -eq 1 ]]; then
     for user_home in /home/*; do
         user=$(basename "$user_home")
         chsh -s /usr/bin/fish "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
     done
-elif [[ $shell_choice == "s" ]]; then
+elif [[ $shell_choice -eq 2 ]]; then
     for user_home in /home/*; do
         user=$(basename "$user_home")
-        read -p "Set Fish as default for $user? (y/n): " user_shell
+        user_shell=$(dialog --title "Set Fish for $user" --inputbox "Set Fish as default for $user? (y/n)" 8 50 3>&1 1>&2 2>&3)
         if [[ $user_shell =~ ^[Yy]$ ]]; then
             chsh -s /usr/bin/fish "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
         fi
@@ -87,8 +100,12 @@ apt install -y nala && {
 } || echo -e "${RED}Failed to install Nala.${RESET}"
 
 # Custom Fish Functions
-read -p "Install custom Fish functions? (y/n): " install_functions
-if [[ $install_functions =~ ^[Yy]$ ]]; then
+install_functions=$(dialog --title "Install Custom Fish Functions" --menu "Do you want to install custom Fish functions?" 15 50 3 \
+1 "Yes" \
+2 "No" \
+3>&1 1>&2 2>&3)
+
+if [[ $install_functions -eq 1 ]]; then
     echo -e "${CYAN}Downloading custom Fish functions from GitHub...${RESET}"
     temp_dir=$(mktemp -d)
     wget -q -r -nH --cut-dirs=3 --no-parent --reject "index.html*" \
@@ -107,17 +124,21 @@ if [[ $install_functions =~ ^[Yy]$ ]]; then
     }
 
     # Prompt for user-specific installation
-    read -p "Install for all users (a) or specific users (s)? " user_choice
-    if [[ $user_choice == "a" ]]; then
+    user_choice=$(dialog --title "Install for Users" --menu "Install Fish functions for all users or specific ones?" 15 50 2 \
+    1 "All users" \
+    2 "Specific users" \
+    3>&1 1>&2 2>&3)
+
+    if [[ $user_choice -eq 1 ]]; then
         echo -e "${GREEN}Installing functions for all users...${RESET}"
         cp -r /usr/share/fish/functions/* /etc/skel/.config/fish/functions/
         for user_home in /home/*; do
             cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
         done
-    elif [[ $user_choice == "s" ]]; then
+    elif [[ $user_choice -eq 2 ]]; then
         for user_home in /home/*; do
             user=$(basename "$user_home")
-            read -p "Install for $user? (y/n): " user_install
+            user_install=$(dialog --title "Install for $user" --inputbox "Install Fish functions for $user? (y/n)" 8 50 3>&1 1>&2 2>&3)
             if [[ $user_install =~ ^[Yy]$ ]]; then
                 mkdir -p "$user_home/.config/fish/functions"
                 cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
@@ -135,8 +156,8 @@ fi
 echo -e "\n${CYAN}Summary of Actions:${RESET}"
 echo -e "${GREEN}✔ System updated${RESET}"
 echo -e "${GREEN}✔ Custom repository added${RESET}"
-[[ $install_qemu =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ QEMU Guest Agent installed${RESET}"
-[[ $install_prometheus =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Prometheus Node Exporter installed${RESET}"
-[[ $install_functions =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}"
+[[ $install_qemu -eq 1 ]] && echo -e "${GREEN}✔ QEMU Guest Agent installed${RESET}"
+[[ $install_prometheus -eq 1 ]] && echo -e "${GREEN}✔ Prometheus Node Exporter installed${RESET}"
+[[ $install_functions -eq 1 ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}"
 echo -e "${GREEN}✔ Tools installed: nala, lsd, ranger, gdu, bat, duf${RESET}"
 echo -e "\n${GREEN}Post-install setup completed successfully!${RESET}"
