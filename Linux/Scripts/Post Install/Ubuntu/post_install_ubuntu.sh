@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Define URL for custom Fish functions
-FISH_FUNCTIONS_URL="https://downloads.thaweak.live/FTP/Linux/Fish_Functions.tar"
-
 # Colors for output
 GREEN="\033[0;32m"
 RED="\033[0;31m"
@@ -39,13 +36,20 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
   exit 1
 }
 
-# Extend LVM
-echo -e "${CYAN}Checking and extending LVM if necessary...${RESET}"
-# Add LVM adjustment commands here
+# Define repository details
+CUSTOM_REPO_URL="https://raw.githubusercontent.com/skuldgerry/hosting/main/Linux/Scripts/Post%20Install/Ubuntu/Repo"
+CUSTOM_REPO_NAME="custom-tools"
 
 # Add custom repo
 echo -e "${CYAN}Adding custom repository for tools...${RESET}"
-# Add commands to add and validate custom repo
+echo "deb [trusted=yes] ${CUSTOM_REPO_URL} ./" > /etc/apt/sources.list.d/${CUSTOM_REPO_NAME}.list
+
+# Validate and update
+apt update || {
+    echo -e "${RED}Failed to add custom repository. Please check the URL or structure.${RESET}"
+    exit 1
+}
+echo -e "${GREEN}Custom repository added successfully!${RESET}"
 
 # Prompt for QEMU Guest Agent
 read -p "Install QEMU Guest Agent? (y/n): " install_qemu
@@ -99,33 +103,54 @@ apt install -y nala lsd ranger gdu bat duf || echo -e "${RED}Failed to install t
 # Custom Fish Functions
 read -p "Install custom Fish functions? (y/n): " install_functions
 if [[ $install_functions =~ ^[Yy]$ ]]; then
-    echo -e "${CYAN}Downloading custom Fish functions from ${FISH_FUNCTIONS_URL}...${RESET}"
+    echo -e "${CYAN}Downloading custom Fish functions from GitHub...${RESET}"
     temp_dir=$(mktemp -d)
 
-    if wget -q "$FISH_FUNCTIONS_URL" -O "$temp_dir/Fish_Functions.tar"; then
-        echo -e "${CYAN}Extracting Fish functions...${RESET}"
-        tar -xf "$temp_dir/Fish_Functions.tar" -C /usr/share/fish/functions/
-
-        read -p "Install for all users (a) or specific users (s)? " user_choice
-        if [[ $user_choice == "a" ]]; then
-            echo -e "${GREEN}Installing functions for all users...${RESET}"
-            cp -r /usr/share/fish/functions/* /etc/skel/.config/fish/functions/
-            for user_home in /home/*; do
-                cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
-            done
-        elif [[ $user_choice == "s" ]]; then
-            for user_home in /home/*; do
-                user=$(basename "$user_home")
-                read -p "Install for $user? (y/n): " user_install
-                if [[ $user_install =~ ^[Yy]$ ]]; then
-                    mkdir -p "$user_home/.config/fish/functions"
-                    cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
-                fi
-            done
-        fi
+    # Clone the GitHub repository (requires git)
+    if command -v git &> /dev/null; then
+        git clone --depth 1 https://github.com/skuldgerry/hosting.git "$temp_dir" || {
+            echo -e "${RED}Failed to clone Fish functions from GitHub.${RESET}"
+            rm -rf "$temp_dir"
+            exit 1
+        }
     else
-        echo -e "${RED}Failed to download Fish functions. Check the URL or network connection.${RESET}"
+        # Fallback to wget or curl if git is not available
+        wget -q -P "$temp_dir" https://raw.githubusercontent.com/skuldgerry/hosting/main/Linux/Fish_Functions/* || {
+            echo -e "${RED}Failed to download Fish functions from GitHub.${RESET}"
+            rm -rf "$temp_dir"
+            exit 1
+        }
     fi
+
+    # Copy Fish functions
+    echo -e "${CYAN}Installing Fish functions...${RESET}"
+    mkdir -p /usr/share/fish/functions/
+    cp -r "$temp_dir/Linux/Fish_Functions/"* /usr/share/fish/functions/ || {
+        echo -e "${RED}Failed to copy Fish functions.${RESET}"
+        rm -rf "$temp_dir"
+        exit 1
+    }
+
+    # Prompt for user-specific installation
+    read -p "Install for all users (a) or specific users (s)? " user_choice
+    if [[ $user_choice == "a" ]]; then
+        echo -e "${GREEN}Installing functions for all users...${RESET}"
+        cp -r /usr/share/fish/functions/* /etc/skel/.config/fish/functions/
+        for user_home in /home/*; do
+            cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
+        done
+    elif [[ $user_choice == "s" ]]; then
+        for user_home in /home/*; do
+            user=$(basename "$user_home")
+            read -p "Install for $user? (y/n): " user_install
+            if [[ $user_install =~ ^[Yy]$ ]]; then
+                mkdir -p "$user_home/.config/fish/functions"
+                cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
+            fi
+        done
+    fi
+
+    # Cleanup
     rm -rf "$temp_dir"
 else
     echo -e "${CYAN}Skipping Fish functions installation.${RESET}"
