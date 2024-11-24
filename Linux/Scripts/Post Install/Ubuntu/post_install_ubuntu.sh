@@ -40,7 +40,7 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
 }
 
 # Define repository details
-CUSTOM_REPO_URL="https://raw.githubusercontent.com/skuldgerry/hosting/main/Linux/Scripts/Post%20Install/Ubuntu/Repo"
+CUSTOM_REPO_URL="https://raw.githubusercontent.com/skuldgerry/hosting/main/Linux/Scripts/Post%20Install/Ubuntu/Packages"
 CUSTOM_REPO_NAME="custom-tools"
 
 # Add custom repo
