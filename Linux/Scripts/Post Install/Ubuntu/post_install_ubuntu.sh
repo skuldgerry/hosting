@@ -39,23 +39,6 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
   exit 1
 }
 
-# Define repository details
-CUSTOM_REPO_URL="https://skuldgerry.github.io/hosting/Linux/Scripts/Post%20Install/Ubuntu/Packages/"
-CUSTOM_REPO_NAME="custom-tools"
-
-# Add custom repo
-echo -e "${CYAN}Adding custom repository for tools...${RESET}"
-if ! wget -q --spider "${CUSTOM_REPO_URL}/Packages.gz"; then
-    echo -e "${RED}Custom repository is missing the Packages.gz file. Please ensure the repository is configured correctly.${RESET}"
-    exit 1
-fi
-echo "deb [trusted=yes] ${CUSTOM_REPO_URL} ./" > /etc/apt/sources.list.d/${CUSTOM_REPO_NAME}.list
-apt update || {
-    echo -e "${RED}Failed to add custom repository. Please check the URL or structure.${RESET}"
-    exit 1
-}
-echo -e "${GREEN}Custom repository added successfully!${RESET}"
-
 # Prompt for QEMU Guest Agent
 read -p "Install QEMU Guest Agent? (y/n): " install_qemu
 if [[ $install_qemu =~ ^[Yy]$ ]]; then
