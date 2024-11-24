@@ -110,7 +110,7 @@ if [[ $install_functions =~ ^[Yy]$ ]]; then
         exit 1
     }
 
-    echo -e "${CYAN}Installing Fish functions...${RESET}"
+    echo -e "${CYAN}Installing Fish functions system-wide...${RESET}"
     mkdir -p /usr/share/fish/functions/
     cp -r "$temp_dir"/* /usr/share/fish/functions/ || {
         echo -e "${RED}Failed to copy Fish functions.${RESET}"
@@ -124,12 +124,10 @@ if [[ $install_functions =~ ^[Yy]$ ]]; then
     echo "2) Specific users"
     echo "3) Skip"
     read -p "Choose an option (1/2/3): " user_choice
+
     if [[ $user_choice == "1" ]]; then
-        mkdir -p /etc/skel/.config/fish/functions/
-        cp -r /usr/share/fish/functions/* /etc/skel/.config/fish/functions/
-        for user_home in /home/*; do
-            cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
-        done
+        echo -e "${GREEN}Functions are already available system-wide in /usr/share/fish/functions/${RESET}"
+        # No need to copy them to /etc/skel or user directories
     elif [[ $user_choice == "2" ]]; then
         for user_home in /home/*; do
             user=$(basename "$user_home")
