@@ -67,28 +67,24 @@ fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/
 fish -c "fisher install IlanCosman/tide && tide configure"
 
 # After Tide is installed and configured for root, add a prompt for user-specific configuration
-tide_config_choice=$(dialog --menu "Tide Configuration" 15 60 3 \
-    1 "Configure Tide for all selected users" \
-    2 "Configure Tide for specific users" \
-    3 "Skip" \
+tide_install_choice=$(dialog --menu "Install Tide for users" 15 60 3 \
+    1 "Install Tide for selected users" \
+    2 "Skip Tide installation" \
     3>&1 1>&2 2>&3)
 clear
 
-if [[ $tide_config_choice == "1" ]]; then
-    # Apply Tide configuration to all users
-    for user_home in /home/*; do
-        user=$(basename "$user_home")
-        cp -r /root/.config/tide/ "$user_home/.config/" || echo -e "${RED}Failed to copy Tide config to $user.${RESET}"
-    done
-elif [[ $tide_config_choice == "2" ]]; then
+if [[ $tide_install_choice == "1" ]]; then
     # List available users
     users=$(getent passwd | cut -d: -f1)
-    selected_users=$(dialog --title "Select Users" --checklist "Select users to configure Tide" 15 60 8 \
+    selected_users=$(dialog --title "Select Users" --checklist "Select users to install Tide" 15 60 8 \
     $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
     clear
 
+    # Install Tide and copy root config
     for user in $selected_users; do
         user_home="/home/$user"
+        echo -e "${CYAN}Installing Tide for $user...${RESET}"
+        sudo -u "$user" fish -c "fisher install IlanCosman/tide" || echo -e "${RED}Failed to install Tide for $user.${RESET}"
         cp -r /root/.config/tide/ "$user_home/.config/" || echo -e "${RED}Failed to copy Tide config to $user.${RESET}"
     done
 fi
