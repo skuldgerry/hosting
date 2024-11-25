@@ -60,31 +60,40 @@ if [[ $? -eq 0 ]]; then
     echo -e "${GREEN}Prometheus Node Exporter installed and configured successfully!${RESET}"
 fi
 
-# Shell Setup
-echo -e "${CYAN}Installing Fish shell and Fisher...${RESET}"
+# Shell Setup: Install Fish shell globally
+echo -e "${CYAN}Installing Fish shell globally...${RESET}"
 apt install -y fish || echo -e "${RED}Failed to install Fish shell.${RESET}"
-fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher"
-fish -c "fisher install IlanCosman/tide && tide configure"
 
-# After Tide is installed and configured for root, add a prompt for user-specific configuration
-tide_install_choice=$(dialog --menu "Install Tide for users" 15 60 3 \
+# Install Fisher globally for all users
+echo -e "${CYAN}Installing Fisher globally for all users...${RESET}"
+curl -sL https://git.io/fisher | fish > /dev/null 2>&1
+fish -c "fisher install jorgebucaran/fisher"
+
+# Install Tide globally for all users
+echo -e "${CYAN}Installing Tide globally for all users...${RESET}"
+fish -c "fisher install IlanCosman/tide"
+
+# Ensure the Tide configuration is available to all users
+echo -e "${CYAN}Configuring Tide for root and copying configuration to all users...${RESET}"
+cp -r /root/.config/tide/ /etc/skel/.config/tide/ || echo -e "${RED}Failed to copy Tide config to /etc/skel.${RESET}"
+
+# Shell Setup: Configure Fish for users
+tide_config_choice=$(dialog --menu "Tide Configuration" 15 60 3 \
     1 "Install Tide for selected users" \
-    2 "Skip Tide installation" \
+    2 "Skip Tide install" \
     3>&1 1>&2 2>&3)
 clear
 
-if [[ $tide_install_choice == "1" ]]; then
+if [[ $tide_config_choice == "1" ]]; then
     # List available users
     users=$(getent passwd | cut -d: -f1)
     selected_users=$(dialog --title "Select Users" --checklist "Select users to install Tide" 15 60 8 \
     $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
     clear
 
-    # Install Tide and copy root config
     for user in $selected_users; do
         user_home="/home/$user"
-        echo -e "${CYAN}Installing Tide for $user...${RESET}"
-        sudo -u "$user" fish -c "fisher install IlanCosman/tide" || echo -e "${RED}Failed to install Tide for $user.${RESET}"
+        # Copy Tide configuration to the user's home directory
         cp -r /root/.config/tide/ "$user_home/.config/" || echo -e "${RED}Failed to copy Tide config to $user.${RESET}"
     done
 fi
