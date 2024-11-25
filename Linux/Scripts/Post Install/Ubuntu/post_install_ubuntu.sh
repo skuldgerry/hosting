@@ -39,9 +39,6 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
   exit 1
 }
 
-# Install whiptail
-apt install whiptail -y
-
 # Prompt for QEMU Guest Agent
 whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60
 if [[ $? -eq 0 ]]; then
