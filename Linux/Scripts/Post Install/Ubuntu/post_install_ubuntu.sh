@@ -75,7 +75,10 @@ users=$(getent passwd | grep -vE 'nologin|false|root' | cut -d: -f1)
 # Display user selection prompt
 selected_users=$(whiptail --title "User Selection" --checklist \
     "Select users to install Tide and Fisher" 15 50 8 \
-    $(for user in $users; do echo "$user" "$user" off; done) 2>&1 >/dev/tty)
+    $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
+
+# Remove extra quotes from the selected users (whiptail returns them with quotes)
+selected_users=$(echo "$selected_users" | tr -d '"' | tr -s ' ')
 
 # Install Tide and Fisher for selected users
 for user in $selected_users; do
@@ -110,6 +113,9 @@ elif [[ $shell_choice == "2" ]]; then
     selected_users=$(whiptail --title "Select Users" --checklist "Select users to set Fish as default shell" 15 60 8 \
     $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
     clear
+
+    # Clean up the selected users
+    selected_users=$(echo "$selected_users" | tr -d '"' | tr -s ' ')
 
     for user in $selected_users; do
         chsh -s /usr/bin/fish "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
@@ -172,6 +178,9 @@ if [[ $? -eq 0 ]]; then
         selected_users=$(whiptail --title "Select Users" --checklist "Select users to install functions" 15 60 8 \
         $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
         clear
+
+        # Clean up the selected users
+        selected_users=$(echo "$selected_users" | tr -d '"' | tr -s ' ')
 
         for user in $selected_users; do
             user_home="/home/$user"
