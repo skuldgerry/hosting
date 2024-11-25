@@ -43,14 +43,14 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
 apt install dialog -y
 
 # Prompt for QEMU Guest Agent
-dialog --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60
+dialog --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60 --no-shadow
 if [[ $? -eq 0 ]]; then
     echo -e "${GREEN}Installing QEMU Guest Agent...${RESET}"
     apt install -y qemu-guest-agent || echo -e "${RED}Failed to install QEMU Guest Agent.${RESET}"
 fi
 
 # Prompt for Prometheus Node Exporter
-dialog --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60
+dialog --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60 --no-shadow
 if [[ $? -eq 0 ]]; then
     echo -e "${CYAN}Installing Prometheus Node Exporter...${RESET}"
     apt install -y prometheus-node-exporter || {
@@ -70,7 +70,7 @@ fish -c "fisher install IlanCosman/tide && tide configure"
 echo -e "${CYAN}Select users to install Tide and Fisher for:${RESET}"
 
 # Get a list of system users
-users=$(getent passwd | grep -vE 'nologin|false' | cut -d: -f1)
+users=$(getent passwd | grep -vE 'nologin|false|root' | cut -d: -f1)
 
 # Display user selection prompt
 selected_users=$(dialog --title "User Selection" --checklist \
@@ -96,7 +96,7 @@ shell_choice=$(dialog --menu "Set Fish shell as default for users" 15 60 3 \
     1 "All users" \
     2 "Specific users" \
     3 "Skip" \
-    3>&1 1>&2 2>&3)
+    --no-shadow 3>&1 1>&2 2>&3)
 clear
 
 if [[ $shell_choice == "1" ]]; then
@@ -108,7 +108,7 @@ elif [[ $shell_choice == "2" ]]; then
     # List available users
     users=$(getent passwd | cut -d: -f1)
     selected_users=$(dialog --title "Select Users" --checklist "Select users to set Fish as default shell" 15 60 8 \
-    $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
+    $(for user in $users; do echo "$user" "$user" off; done) --no-shadow 3>&1 1>&2 2>&3)
     clear
 
     for user in $selected_users; do
@@ -123,7 +123,7 @@ apt install -y nala && {
 } || echo -e "${RED}Failed to install Nala.${RESET}"
 
 # Custom Fish Functions Installation
-dialog --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60
+dialog --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60 --no-shadow
 if [[ $? -eq 0 ]]; then
     echo -e "${CYAN}Cloning custom Fish functions from GitHub...${RESET}"
     
@@ -162,7 +162,7 @@ if [[ $? -eq 0 ]]; then
         1 "All users" \
         2 "Specific users" \
         3 "Skip" \
-        3>&1 1>&2 2>&3)
+        --no-shadow 3>&1 1>&2 2>&3)
     clear
 
     if [[ $user_choice == "1" ]]; then
@@ -170,7 +170,7 @@ if [[ $? -eq 0 ]]; then
     elif [[ $user_choice == "2" ]]; then
         users=$(getent passwd | cut -d: -f1)
         selected_users=$(dialog --title "Select Users" --checklist "Select users to install functions" 15 60 8 \
-        $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
+        $(for user in $users; do echo "$user" "$user" off; done) --no-shadow 3>&1 1>&2 2>&3)
         clear
 
         for user in $selected_users; do
