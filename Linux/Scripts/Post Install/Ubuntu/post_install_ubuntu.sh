@@ -60,43 +60,16 @@ if [[ $? -eq 0 ]]; then
     echo -e "${GREEN}Prometheus Node Exporter installed and configured successfully!${RESET}"
 fi
 
-# Shell Setup: Install Fish shell globally
-echo -e "${CYAN}Installing Fish shell globally...${RESET}"
+# Shell Setup
+echo -e "${CYAN}Installing Fish shell and Fisher...${RESET}"
 apt install -y fish || echo -e "${RED}Failed to install Fish shell.${RESET}"
+fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher"
+fish -c "fisher install IlanCosman/tide && tide configure"
 
-# Install Fisher globally for all users
-echo -e "${CYAN}Installing Fisher globally for all users...${RESET}"
-curl -sL https://git.io/fisher | fish > /dev/null 2>&1
-fish -c "fisher install jorgebucaran/fisher"
-
-# Install Tide globally for all users
-echo -e "${CYAN}Installing Tide globally for all users...${RESET}"
-fish -c "fisher install IlanCosman/tide"
-
-# Ensure the Tide configuration is available to all users
-echo -e "${CYAN}Configuring Tide for root and copying configuration to all users...${RESET}"
-cp -r /root/.config/tide/ /etc/skel/.config/tide/ || echo -e "${RED}Failed to copy Tide config to /etc/skel.${RESET}"
-
-# Shell Setup: Configure Fish for users
-tide_config_choice=$(dialog --menu "Tide Configuration" 15 60 3 \
-    1 "Install Tide for selected users" \
-    2 "Skip Tide install" \
-    3>&1 1>&2 2>&3)
-clear
-
-if [[ $tide_config_choice == "1" ]]; then
-    # List available users
-    users=$(getent passwd | cut -d: -f1)
-    selected_users=$(dialog --title "Select Users" --checklist "Select users to install Tide" 15 60 8 \
-    $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
-    clear
-
-    for user in $selected_users; do
-        user_home="/home/$user"
-        # Copy Tide configuration to the user's home directory
-        cp -r /root/.config/tide/ "$user_home/.config/" || echo -e "${RED}Failed to copy Tide config to $user.${RESET}"
-    done
-fi
+# After Tide is configured for root, move the configuration and install Fisher globally
+echo -e "${CYAN}Copying root's Fish config to global Fish directory...${RESET}"
+mkdir -p /etc/fish/functions /etc/fish/conf.d
+cp -r /root/.config/fish/* /etc/fish/ || echo -e "${RED}Failed to copy Fish config to /etc/fish.${RESET}"
 
 # Prompt for Fish as the default shell
 shell_choice=$(dialog --menu "Set Fish shell as default for users" 15 60 3 \
@@ -152,8 +125,8 @@ if [[ $? -eq 0 ]]; then
         echo -e "${CYAN}Installing Fish functions system-wide...${RESET}"
         
         # Move the functions to the system-wide Fish functions directory
-        mkdir -p /usr/share/fish/functions/
-        cp -r "$fish_functions_dir"/* /usr/share/fish/functions/ || {
+        mkdir -p /etc/fish/functions
+        cp -r "$fish_functions_dir"/* /etc/fish/functions || {
             echo -e "${RED}Failed to copy Fish functions to system-wide directory.${RESET}"
             rm -rf "$temp_dir"
             exit 1
@@ -173,7 +146,7 @@ if [[ $? -eq 0 ]]; then
     clear
 
     if [[ $user_choice == "1" ]]; then
-        echo -e "${GREEN}Functions are already available system-wide in /usr/share/fish/functions/${RESET}"
+        echo -e "${GREEN}Functions are already available system-wide in /etc/fish/functions${RESET}"
     elif [[ $user_choice == "2" ]]; then
         users=$(getent passwd | cut -d: -f1)
         selected_users=$(dialog --title "Select Users" --checklist "Select users to install functions" 15 60 8 \
@@ -183,7 +156,7 @@ if [[ $? -eq 0 ]]; then
         for user in $selected_users; do
             user_home="/home/$user"
             mkdir -p "$user_home/.config/fish/functions"
-            cp -r /usr/share/fish/functions/* "$user_home/.config/fish/functions/"
+            cp -r /etc/fish/functions* "$user_home/.config/fish/functions/"
         done
     fi
 
