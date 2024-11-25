@@ -10,12 +10,12 @@ RESET="\033[0m"
 header_info() {
   clear
   cat <<"EOF"
-    ____  ____ _____    _    _       _   _  _____ _____  _____ _____ ______ 
-   / __ \/ __ ) ___/   | |  | |     | | | ||  ___|  __ \|_   _/  __ \| ___ \
-  / /_/ / __  \__ \    | |  | |_ __ | |_| || |__ | |  \/  | | | /  \/| |_/ /
- / ____/ /_/ /__/ /    | |/\| | '_ \|  _  ||  __|| | __   | | | |    |    / 
-/_/   /_____/____/     \  /\  / | | | | | || |___| |_\ \ _| |_| \__/\| |\ \ 
-                       \/  \/|_| |_|_| |_/\____/ \____/ \___/ \____/\_| \_|
+ _____   _____   _____       _    _  ____   _    _  _   _  _______  _    _ 
+|  __ \ |_   _| / ____|     | |  | ||  _ \ | |  | || \ | ||__   __|| |  | |
+| |__) |  | |  | (___       | |  | || |_) || |  | ||  \| |   | |   | |  | |
+|  ___/   | |   \___ \      | |  | ||  _ < | |  | || . ` |   | |   | |  | |
+| |      _| |_  ____) |     | |__| || |_) || |__| || |\  |   | |   | |__| |
+|_|     |_____||_____/       \____/ |____/  \____/ |_| \_|   |_|    \____/
 
                      Ubuntu Server Post Install Script
 EOF
@@ -39,18 +39,18 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
   exit 1
 }
 
-# Install dialog
-apt install dialog -y
+# Install whiptail
+apt install whiptail -y
 
 # Prompt for QEMU Guest Agent
-dialog --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60 --no-shadow
+whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60
 if [[ $? -eq 0 ]]; then
     echo -e "${GREEN}Installing QEMU Guest Agent...${RESET}"
     apt install -y qemu-guest-agent || echo -e "${RED}Failed to install QEMU Guest Agent.${RESET}"
 fi
 
 # Prompt for Prometheus Node Exporter
-dialog --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60 --no-shadow
+whiptail --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60
 if [[ $? -eq 0 ]]; then
     echo -e "${CYAN}Installing Prometheus Node Exporter...${RESET}"
     apt install -y prometheus-node-exporter || {
@@ -73,7 +73,7 @@ echo -e "${CYAN}Select users to install Tide and Fisher for:${RESET}"
 users=$(getent passwd | grep -vE 'nologin|false|root' | cut -d: -f1)
 
 # Display user selection prompt
-selected_users=$(dialog --title "User Selection" --checklist \
+selected_users=$(whiptail --title "User Selection" --checklist \
     "Select users to install Tide and Fisher" 15 50 8 \
     $(for user in $users; do echo "$user" "$user" off; done) 2>&1 >/dev/tty)
 
@@ -92,11 +92,11 @@ for user in $selected_users; do
 done
 
 # Prompt for Fish as the default shell
-shell_choice=$(dialog --menu "Set Fish shell as default for users" 15 60 3 \
+shell_choice=$(whiptail --menu "Set Fish shell as default for users" 15 60 3 \
     1 "All users" \
     2 "Specific users" \
     3 "Skip" \
-    --no-shadow 3>&1 1>&2 2>&3)
+    3>&1 1>&2 2>&3)
 clear
 
 if [[ $shell_choice == "1" ]]; then
@@ -107,8 +107,8 @@ if [[ $shell_choice == "1" ]]; then
 elif [[ $shell_choice == "2" ]]; then
     # List available users
     users=$(getent passwd | cut -d: -f1)
-    selected_users=$(dialog --title "Select Users" --checklist "Select users to set Fish as default shell" 15 60 8 \
-    $(for user in $users; do echo "$user" "$user" off; done) --no-shadow 3>&1 1>&2 2>&3)
+    selected_users=$(whiptail --title "Select Users" --checklist "Select users to set Fish as default shell" 15 60 8 \
+    $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
     clear
 
     for user in $selected_users; do
@@ -123,7 +123,7 @@ apt install -y nala && {
 } || echo -e "${RED}Failed to install Nala.${RESET}"
 
 # Custom Fish Functions Installation
-dialog --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60 --no-shadow
+whiptail --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60
 if [[ $? -eq 0 ]]; then
     echo -e "${CYAN}Cloning custom Fish functions from GitHub...${RESET}"
     
@@ -158,19 +158,19 @@ if [[ $? -eq 0 ]]; then
     fi
 
     # Continue with user selection for installing functions
-    user_choice=$(dialog --menu "Install Fish functions for" 15 60 3 \
+    user_choice=$(whiptail --menu "Install Fish functions for" 15 60 3 \
         1 "All users" \
         2 "Specific users" \
         3 "Skip" \
-        --no-shadow 3>&1 1>&2 2>&3)
+        3>&1 1>&2 2>&3)
     clear
 
     if [[ $user_choice == "1" ]]; then
         echo -e "${GREEN}Functions are already available system-wide in /etc/fish/functions${RESET}"
     elif [[ $user_choice == "2" ]]; then
         users=$(getent passwd | cut -d: -f1)
-        selected_users=$(dialog --title "Select Users" --checklist "Select users to install functions" 15 60 8 \
-        $(for user in $users; do echo "$user" "$user" off; done) --no-shadow 3>&1 1>&2 2>&3)
+        selected_users=$(whiptail --title "Select Users" --checklist "Select users to install functions" 15 60 8 \
+        $(for user in $users; do echo "$user" "$user" off; done) 3>&1 1>&2 2>&3)
         clear
 
         for user in $selected_users; do
