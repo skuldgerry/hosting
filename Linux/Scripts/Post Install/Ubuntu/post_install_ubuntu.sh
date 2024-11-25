@@ -66,10 +66,30 @@ apt install -y fish || echo -e "${RED}Failed to install Fish shell.${RESET}"
 fish -c "curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher"
 fish -c "fisher install IlanCosman/tide && tide configure"
 
-# After Tide is configured for root, move the configuration and install Fisher globally
-echo -e "${CYAN}Copying root's Fish config to global Fish directory...${RESET}"
-mkdir -p /etc/fish/functions /etc/fish/conf.d
-cp -r /root/.config/fish/* /etc/fish/ || echo -e "${RED}Failed to copy Fish config to /etc/fish.${RESET}"
+# After Tide is configured for root, prompt user to select users to install Tide and Fisher
+echo -e "${CYAN}Select users to install Tide and Fisher for:${RESET}"
+
+# Get a list of system users
+users=$(getent passwd | grep -vE 'nologin|false' | cut -d: -f1)
+
+# Display user selection prompt
+selected_users=$(dialog --title "User Selection" --checklist \
+    "Select users to install Tide and Fisher" 15 50 8 \
+    $(for user in $users; do echo "$user" "$user" off; done) 2>&1 >/dev/tty)
+
+# Install Tide and Fisher for selected users
+for user in $selected_users; do
+    echo -e "${CYAN}Copying Fish configuration to $user...${RESET}"
+
+    # Ensure the user's .config/fish directory exists
+    mkdir -p "/home/$user/.config/fish"
+
+    # Copy the root Fish config to the user's Fish directory
+    cp -r /root/.config/fish/* "/home/$user/.config/fish/"
+
+    # Fix permissions for the user's Fish config directory
+    chown -R "$user:$user" "/home/$user/.config/fish"
+done
 
 # Prompt for Fish as the default shell
 shell_choice=$(dialog --menu "Set Fish shell as default for users" 15 60 3 \
