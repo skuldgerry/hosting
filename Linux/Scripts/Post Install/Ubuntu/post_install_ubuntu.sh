@@ -125,6 +125,9 @@ apt install -y nala && {
     nala install -y lsd ranger gdu bat duf || echo -e "${RED}Failed to install some tools.${RESET}"
 } || echo -e "${RED}Failed to install Nala.${RESET}"
 
+# Git Install for Functions
+nala install git -y
+
 # Custom Fish Functions Installation
 whiptail --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60
 if [[ $? -eq 0 ]]; then
