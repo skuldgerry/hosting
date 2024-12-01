@@ -135,13 +135,11 @@ elif [[ $shell_choice == "2" ]]; then
 fi
 
 # Tool Installation
-echo -e "${CYAN}Installing tools using Nala...${RESET}"
-dnf install -y nala && {
-    nala install -y lsd ranger gdu bat duf || echo -e "${RED}Failed to install some tools.${RESET}"
-} || echo -e "${RED}Failed to install Nala.${RESET}"
+echo -e "${CYAN}Installing tools using DNF...${RESET}"
+dnf install -y lsd ranger gdu bat duf || echo -e "${RED}Failed to install some tools.${RESET}"
 
 # Git Install for Functions
-nala install git -y
+dnf install git -y
 
 # Custom Fish Functions Installation
 whiptail --title "Custom Fish Functions" --yesno "Install custom Fish functions?" 7 60
@@ -216,5 +214,5 @@ echo -e "${GREEN}✔ System updated${RESET}"
 [[ $install_qemu =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ QEMU Guest Agent installed${RESET}"
 [[ $install_prometheus =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Prometheus Node Exporter installed${RESET}"
 [[ $install_functions =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}"
-echo -e "${GREEN}✔ Tools installed: nala, lsd, ranger, gdu, bat, duf${RESET}"
+echo -e "${GREEN}✔ Tools installed: lsd, ranger, gdu, bat, duf${RESET}"
 echo -e "\n${GREEN}Post-install setup completed successfully!${RESET}"
