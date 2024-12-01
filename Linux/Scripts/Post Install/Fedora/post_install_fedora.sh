@@ -39,6 +39,9 @@ dnf -y update || {
     exit 1
 }
 
+#Install Whiptail
+dnf install whiptail -y
+
 # Prompt for QEMU Guest Agent
 whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60
 if [[ $? -eq 0 ]]; then
@@ -133,7 +136,7 @@ fi
 
 # Tool Installation
 echo -e "${CYAN}Installing tools using Nala...${RESET}"
-apt install -y nala && {
+dnf install -y nala && {
     nala install -y lsd ranger gdu bat duf || echo -e "${RED}Failed to install some tools.${RESET}"
 } || echo -e "${RED}Failed to install Nala.${RESET}"
 
@@ -215,4 +218,3 @@ echo -e "${GREEN}✔ System updated${RESET}"
 [[ $install_functions =~ ^[Yy]$ ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}"
 echo -e "${GREEN}✔ Tools installed: nala, lsd, ranger, gdu, bat, duf${RESET}"
 echo -e "\n${GREEN}Post-install setup completed successfully!${RESET}"
-
