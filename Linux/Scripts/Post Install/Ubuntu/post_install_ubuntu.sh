@@ -40,8 +40,7 @@ apt update && apt upgrade -y && apt dist-upgrade -y || {
 }
 
 # Prompt for QEMU Guest Agent
-whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60
-if [[ $? -eq 0 ]]; then
+if whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60; then
     echo -e "${GREEN}Installing QEMU Guest Agent...${RESET}"
     apt install -y qemu-guest-agent && {
         systemctl enable --now qemu-guest-agent && {
@@ -52,11 +51,12 @@ if [[ $? -eq 0 ]]; then
     } || {
         echo -e "${RED}Failed to install QEMU Guest Agent.${RESET}"
     }
+else
+    echo -e "${CYAN}Skipping QEMU Guest Agent installation.${RESET}"
 fi
 
 # Prompt for Prometheus Node Exporter
-whiptail --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60
-if [[ $? -eq 0 ]]; then
+if whiptail --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60; then
     echo -e "${CYAN}Installing Prometheus Node Exporter...${RESET}"
     apt install -y prometheus-node-exporter && {
         systemctl enable --now prometheus-node-exporter && {
@@ -67,6 +67,8 @@ if [[ $? -eq 0 ]]; then
     } || {
         echo -e "${RED}Failed to install Prometheus Node Exporter.${RESET}"
     }
+else
+    echo -e "${CYAN}Skipping Prometheus Node Exporter installation.${RESET}"
 fi
 
 # Shell Setup
