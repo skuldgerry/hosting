@@ -58,14 +58,28 @@ get_regular_users() {
   awk -F: '$3 >= 1000 && $1 != "nobody" && $7 !~ /(nologin|false)$/ {print $1}' /etc/passwd
 }
 
+# Return users eligible for shell changes, including root plus regular interactive users.
+get_shell_users() {
+  { echo "root"; get_regular_users; } | awk 'NF && !seen[$0]++'
+}
+
 # Run a whiptail checklist safely. Prints selected items without quotes, or nothing on Cancel/no selection.
+# Optional third argument:
+#   0/default = regular interactive users only
+#   1         = include root as an option
 select_users_checklist() {
   local title="$1"
   local message="$2"
+  local include_root="${3:-0}"
   local users
   local selected
 
-  users=$(get_regular_users)
+  if [[ "$include_root" -eq 1 ]]; then
+    users=$(get_shell_users)
+  else
+    users=$(get_regular_users)
+  fi
+
   if [[ -z "$users" ]]; then
     echo ""
     return 0
@@ -189,9 +203,9 @@ if apt install -y fish; then
     done
 
     # Prompt for Fish as the default shell
-    shell_choice=$(whiptail --menu "Set Fish shell as default for users" 15 60 3 \
-        1 "All users" \
-        2 "Specific users" \
+    shell_choice=$(whiptail --menu "Set Fish shell as default shell" 15 60 3 \
+        1 "All users, including root" \
+        2 "Select users" \
         3 "Skip" \
         3>&1 1>&2 2>&3) || shell_choice="3"
     clear
@@ -199,9 +213,9 @@ if apt install -y fish; then
     if [[ "$shell_choice" == "1" ]]; then
         while read -r user; do
             chsh -s "$FISH_PATH" "$user" || echo -e "${RED}Failed to set Fish for $user.${RESET}"
-        done < <(get_regular_users)
+        done < <(get_shell_users)
     elif [[ "$shell_choice" == "2" ]]; then
-        selected_users=$(select_users_checklist "Select Users" "Select users to set Fish as default shell")
+        selected_users=$(select_users_checklist "Select Users" "Select users to set Fish as default shell" 1)
         clear
 
         for user in $selected_users; do
