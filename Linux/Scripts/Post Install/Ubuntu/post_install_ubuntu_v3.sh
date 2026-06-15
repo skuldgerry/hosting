@@ -8,8 +8,10 @@ YELLOW="\033[1;33m"
 BLUE="\033[1;34m"
 RESET="\033[0m"
 
-# Trap to handle unexpected errors
-set -Euo pipefail
+# Safer shell options
+# Do not use `set -e` here: whiptail returns non-zero for normal choices like No/Cancel,
+# and install steps below already handle failures explicitly with if/else blocks.
+set -uo pipefail
 trap 'echo -e "${RED}An unexpected error occurred on line $LINENO. Exiting.${RESET}"; exit 1' ERR
 
 # Install-state flags. Keep these initialized so set -u cannot fail in the summary.
