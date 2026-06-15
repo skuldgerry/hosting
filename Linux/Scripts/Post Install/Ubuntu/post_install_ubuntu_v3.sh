@@ -10,8 +10,19 @@ RESET="\033[0m"
 
 # Safer shell options
 # Do not use `set -e` or a global ERR trap here: whiptail returns non-zero for normal
-# choices like No/Cancel, and install steps below already handle failures explicitly.
+# choices like No/Cancel/Esc, and install steps below already handle failures explicitly.
 set -uo pipefail
+
+# Graceful exit helper. Ctrl+C / SIGTERM should actually stop the script, while normal
+# whiptail No/Cancel handling is managed per prompt below.
+exit_script() {
+  local message="${1:-User requested exit.}"
+  echo -e "\n${YELLOW}${message}${RESET}"
+  echo -e "${CYAN}Post-install script stopped before completion.${RESET}"
+  exit 130
+}
+
+trap 'exit_script "Interrupted by user."' INT TERM
 
 # Install-state flags. Keep these initialized so set -u cannot fail in the summary.
 install_qemu=0
@@ -64,6 +75,68 @@ get_shell_users() {
   { echo "root"; get_regular_users; } | awk 'NF && !seen[$0]++'
 }
 
+# Ask whether a cancelled dialog should exit the whole script.
+# No = cancel/skip only the current prompt and continue.
+confirm_exit_after_cancel() {
+  local context="$1"
+
+  if whiptail --title "${context} cancelled" \
+    --yesno "You cancelled: ${context}\n\nExit the post-install script now?\n\nChoose No to skip this prompt and continue." 11 70; then
+    exit_script "User chose to exit from: ${context}."
+  fi
+
+  return 0
+}
+
+# Uniform yes/no prompt wrapper.
+# Return codes:
+#   0 = Yes
+#   1 = No, Cancel, or Esc after choosing to continue
+ask_yes_no() {
+  local title="$1"
+  local message="$2"
+  local status
+
+  whiptail --title "$title" --yesno "$message" 8 70
+  status=$?
+
+  case "$status" in
+    0) return 0 ;;
+    1) return 1 ;;
+    255)
+      confirm_exit_after_cancel "$title"
+      return 1
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# Uniform menu wrapper. Prints the selected item. Returns non-zero if skipped/cancelled.
+select_menu() {
+  local title="$1"
+  local message="$2"
+  shift 2
+  local choice
+  local status
+
+  choice=$(whiptail --title "$title" --menu "$message" 16 70 6 "$@" 3>&1 1>&2 2>&3)
+  status=$?
+
+  case "$status" in
+    0)
+      echo "$choice"
+      return 0
+      ;;
+    1|255)
+      confirm_exit_after_cancel "$title"
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Run a whiptail checklist safely. Prints selected items without quotes, or nothing on Cancel/no selection.
 # Optional third argument:
 #   0/default = regular interactive users only
@@ -74,6 +147,7 @@ select_users_checklist() {
   local include_root="${3:-0}"
   local users
   local selected
+  local status
 
   if [[ "$include_root" -eq 1 ]]; then
     users=$(get_shell_users)
@@ -86,11 +160,26 @@ select_users_checklist() {
     return 0
   fi
 
-  selected=$(whiptail --title "$title" --checklist "$message" 15 60 8 \
+  selected=$(whiptail --title "$title" --checklist "$message" 16 70 8 \
     $(for user in $users; do echo "$user" "$user" off; done) \
-    3>&1 1>&2 2>&3) || selected=""
+    3>&1 1>&2 2>&3)
+  status=$?
 
-  echo "$selected" | tr -d '"' | tr -s ' '
+  case "$status" in
+    0)
+      echo "$selected" | tr -d '"' | tr -s ' '
+      return 0
+      ;;
+    1|255)
+      confirm_exit_after_cancel "$title"
+      echo ""
+      return 1
+      ;;
+    *)
+      echo ""
+      return 1
+      ;;
+  esac
 }
 
 # Check for root
@@ -128,7 +217,7 @@ else
 fi
 
 # Prompt for QEMU Guest Agent
-if whiptail --title "QEMU Guest Agent" --yesno "Install QEMU Guest Agent?" 7 60; then
+if ask_yes_no "QEMU Guest Agent" "Install QEMU Guest Agent?"; then
     echo -e "${BLUE}[INFO]${RESET} Installing QEMU Guest Agent..."
     if apt install -y qemu-guest-agent; then
         if systemctl enable --now qemu-guest-agent; then
@@ -145,7 +234,7 @@ else
 fi
 
 # Prompt for Prometheus Node Exporter
-if whiptail --title "Prometheus Node Exporter" --yesno "Install Prometheus Node Exporter?" 7 60; then
+if ask_yes_no "Prometheus Node Exporter" "Install Prometheus Node Exporter?"; then
     echo -e "${BLUE}[INFO]${RESET} Installing Prometheus Node Exporter..."
     if apt install -y prometheus-node-exporter; then
         if systemctl enable --now prometheus-node-exporter; then
@@ -179,13 +268,27 @@ if apt install -y fish; then
 
     # Optional: run `tide configure` interactively after the script if you want to customise the prompt.
 
-    # After Tide is configured for root, prompt user to select users to install Tide and Fisher
-    echo -e "${YELLOW}Select users to install Tide and Fisher for:${RESET}"
-    selected_users=$(select_users_checklist "User Selection" "Select users to install Tide and Fisher")
+    # Prompt for Tide/Fisher using the same pattern as the default-shell prompt.
+    tide_choice=$(select_menu "Install Tide and Fisher" "Install Tide and Fisher for:" \
+        1 "All users, including root" \
+        2 "Select users" \
+        3 "Skip") || tide_choice="3"
     clear
 
-    # Install Tide and Fisher for selected users
+    selected_users=""
+    if [[ "$tide_choice" == "1" ]]; then
+        selected_users=$(get_shell_users)
+    elif [[ "$tide_choice" == "2" ]]; then
+        selected_users=$(select_users_checklist "Select Users" "Select users to install Tide and Fisher" 1) || selected_users=""
+        clear
+    fi
+
+    # Copy the root Fish configuration, including Fisher/Tide files, to selected non-root users.
     for user in $selected_users; do
+        if [[ "$user" == "root" ]]; then
+            continue
+        fi
+
         user_home=$(getent passwd "$user" | cut -d: -f6)
         if [[ -z "$user_home" || ! -d "$user_home" ]]; then
             echo -e "${RED}Skipping $user: home directory not found.${RESET}"
@@ -204,11 +307,10 @@ if apt install -y fish; then
     done
 
     # Prompt for Fish as the default shell
-    shell_choice=$(whiptail --menu "Set Fish shell as default shell" 15 60 3 \
+    shell_choice=$(select_menu "Set Fish shell as default shell" "Set Fish shell as default shell for:" \
         1 "All users, including root" \
         2 "Select users" \
-        3 "Skip" \
-        3>&1 1>&2 2>&3) || shell_choice="3"
+        3 "Skip") || shell_choice="3"
     clear
 
     if [[ "$shell_choice" == "1" ]]; then
@@ -309,11 +411,31 @@ else
 fi
 
 # Final Summary
+summary_text=$(cat <<EOF
+Summary of Actions
+
+✔ System updated
+$([[ "$install_qemu" -eq 1 ]] && echo "✔ QEMU Guest Agent installed" || echo "○ QEMU Guest Agent skipped")
+$([[ "$install_prometheus" -eq 1 ]] && echo "✔ Prometheus Node Exporter installed" || echo "○ Prometheus Node Exporter skipped")
+$([[ "$install_fish" -eq 1 ]] && echo "✔ Fish shell installed/configured where selected" || echo "○ Fish shell skipped or failed")
+$([[ "$install_functions" -eq 1 ]] && echo "✔ Custom Fish functions installed" || echo "○ Custom Fish functions skipped")
+$([[ "$install_tools" -eq 1 ]] && echo "✔ Tools installed: nala, lsd, ranger, gdu, bat, duf" || echo "○ Some tools were skipped or failed")
+
+Post-install setup completed successfully!
+EOF
+)
+
 echo -e "\n${CYAN}Summary of Actions:${RESET}"
-echo -e "${GREEN}✔ System updated${RESET}"
-[[ "$install_qemu" -eq 1 ]] && echo -e "${GREEN}✔ QEMU Guest Agent installed${RESET}" || echo -e "${CYAN}○ QEMU Guest Agent skipped${RESET}"
-[[ "$install_prometheus" -eq 1 ]] && echo -e "${GREEN}✔ Prometheus Node Exporter installed${RESET}" || echo -e "${CYAN}○ Prometheus Node Exporter skipped${RESET}"
-[[ "$install_fish" -eq 1 ]] && echo -e "${GREEN}✔ Fish shell installed/configured where selected${RESET}" || echo -e "${CYAN}○ Fish shell skipped or failed${RESET}"
-[[ "$install_functions" -eq 1 ]] && echo -e "${GREEN}✔ Custom Fish functions installed${RESET}" || echo -e "${CYAN}○ Custom Fish functions skipped${RESET}"
-[[ "$install_tools" -eq 1 ]] && echo -e "${GREEN}✔ Tools installed: nala, lsd, ranger, gdu, bat, duf${RESET}" || echo -e "${CYAN}○ Some tools were skipped or failed${RESET}"
-echo -e "\n${GREEN}Post-install setup completed successfully!${RESET}"
+echo "$summary_text"
+
+if command -v whiptail &>/dev/null; then
+    whiptail --title "Post-install Summary" --msgbox "$summary_text" 20 78 || true
+fi
+
+if [[ "$install_fish" -eq 1 ]]; then
+    if ask_yes_no "Launch Fish" "Switch to Fish now?\n\nTip: if Tide was installed, type:\n\n  tide configure\n\nto customise your prompt."; then
+        echo -e "${GREEN}Switching to Fish.${RESET}"
+        echo -e "${CYAN}Tip: type 'tide configure' to customise Tide.${RESET}"
+        exec "$FISH_PATH"
+    fi
+fi
